@@ -72,7 +72,7 @@
     .legend-box{width:24px;height:24px;background:var(--cargo);border:1.8px solid #111;border-radius:3px}
     .main-title{text-align:center;color:#06459a;font-size:17px;font-weight:900;margin:5px 0 6px;text-transform:uppercase}
     .print-ship-name{display:none;text-align:center;color:#0f3769;font-size:14px;font-weight:900;margin:0 0 14px}
-    .canvas{width:540px;min-height:900px;margin:auto;background:white;border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:22px;position:relative;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;touch-action:none}
+    .canvas{width:540px;min-height:900px;margin:auto;background:white;border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:22px;position:relative;cursor:crosshair;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;touch-action:pan-x pan-y}
     .canvas.panning{cursor:grabbing}
     .cargo-input-card{max-width:900px;margin:0 auto 14px;overflow:visible}
     .cargo-input-card h2{background:linear-gradient(90deg,#eaf2ff,#f8fbff);color:#06459a}
@@ -126,7 +126,7 @@
     .cargo *{user-select:none;-webkit-user-select:none;-webkit-user-drag:none;pointer-events:none}
     .cargo.selected{outline:3px solid #0b5ed7;outline-offset:2px}
     .select-box{position:absolute;border:2px dashed #0b5ed7;background:rgba(11,94,215,.12);z-index:50;pointer-events:none}
-    .dim{position:absolute;font-size:13px;color:#111;background:#fff;padding:2px 5px;z-index:10}
+    .dim{position:absolute;font-size:13px;color:#111;background:transparent;border:0;box-shadow:none;padding:2px 5px;z-index:3;pointer-events:none}
     .dim-line{position:absolute;background:#111;z-index:9}
     .side-profile-card{width:760px;max-width:100%;margin:18px auto 0;background:white;border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.08);padding:18px}
     .side-profile-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
@@ -190,7 +190,7 @@
     .zoom-bar{width:540px;max-width:100%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
     .zoom-label{font-size:12px;font-weight:900;color:#0f3769;background:#eff6ff;border:1px solid var(--line);border-radius:999px;padding:7px 10px;min-width:70px;text-align:center}
     .zoom-hint{font-size:12px;color:#64748b;font-weight:700}
-    .canvas-viewport{width:100%;overflow:auto;padding:2px 0 8px;scrollbar-width:thin;overscroll-behavior:contain}
+    .canvas-viewport{width:100%;overflow:auto;padding:2px 0 8px;scrollbar-width:thin;overscroll-behavior:auto}
     .canvas-viewport::-webkit-scrollbar{height:9px;width:9px}
     .canvas-viewport::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
     .canvas-viewport::-webkit-scrollbar-track{background:#f8fafc;border-radius:999px}
@@ -271,9 +271,16 @@
       .cargo.collision::after{display:none!important}
       .cargo-label{color:#000!important;background:transparent!important;text-shadow:0 1px 0 rgba(255,255,255,.75),0 -1px 0 rgba(255,255,255,.45)!important}
       .cargo-tonnage{background:transparent!important;color:#000!important}
-      .dim{background:#fff!important;color:#111!important}
+      .dim{background:transparent!important;border:0!important;box-shadow:none!important;color:#111!important}
       .dim-line{background:#111!important}
+      .cargo-label-drag{background:transparent!important;border:0!important;box-shadow:none!important;outline:none!important}
+      /* Muat dalam 1 halaman A4: skala dihitung otomatis oleh JS (--printScale) */
+      html,body{height:auto!important;overflow:visible!important}
+      .canvas-viewport{overflow:visible!important;width:auto!important;padding:0!important}
+      .canvas{padding:calc(22px + var(--ovT,0px)) calc(22px + var(--ovR,0px)) calc(22px + var(--ovB,0px)) calc(22px + var(--ovL,0px))!important;overflow:visible!important;zoom:var(--printScale,1);page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important;min-height:0!important}
+      .print-ship-name{page-break-after:avoid!important}
     }
+    @page{size:A4 portrait;margin:8mm}
   </style>
 </head>
 <body>
@@ -289,7 +296,7 @@
       <button class="btn" onclick="undoAction()">↶ Undo</button>
       <button class="btn" onclick="redoAction()">↷ Redo</button>
       <button class="btn" onclick="saveJSON()">💾 Simpan Project</button>
-      <button class="btn primary" onclick="window.print()">Export PDF</button>
+      <button class="btn primary" onclick="updatePrintScale();window.print()">Export PDF</button>
       <button class="btn" onclick="downloadStowageImage()">Unduh Gambar</button>
       <button class="btn danger" onclick="resetAll()">Reset</button>
     </div>
@@ -383,7 +390,7 @@
         <span class="zoom-label" id="zoomValue">100%</span>
         <button class="btn small" onclick="zoomStowageIn()">＋ Zoom In</button>
         <button class="btn small" onclick="resetStowageZoom()">Reset Zoom</button>
-        <span class="zoom-hint">Scroll mouse / cubit layar untuk zoom</span>
+        <span class="zoom-hint">Ctrl + scroll mouse (atau pinch trackpad) untuk zoom, atau pakai tombol Zoom</span>
       </div>
       <div class="print-ship-name" id="printShipNameUnderTitle">-</div>
       <div class="canvas-viewport" id="canvasViewport"><div class="canvas"><div id="shipWrap" class="ship-wrap"><div id="ship" class="ship"></div></div></div></div>
@@ -1032,7 +1039,7 @@
     function escapeHTML(text){return String(text).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
     function formatWeight(w){
       const n=Number(w||0);
-      return Number.isInteger(n)?String(n):n.toFixed(1);
+      return Number.isInteger(n)?String(n):String(Number(n.toFixed(2)));
     }
     function getCargoFontSize(c){
       const w=Math.max(1,c.W*scale);
@@ -1162,7 +1169,7 @@
       const totalArea=ship.deckW*ship.deckL+ship.rampW*ship.rampL;
       shipInfo.innerHTML=`<b>Nama Kapal</b>: ${ship.name}<br><b>Deck Space</b>: ${ship.deckW.toFixed(2)} m × ${ship.deckL.toFixed(2)} m<br><b>Ramp Door</b>: ${ship.rampW.toFixed(2)} m × ${ship.rampL.toFixed(2)} m<br><b>Total Area</b>: ${totalArea.toFixed(2)} m²<br><b>Deck Strength</b>: ${ship.strength} Ton/m²<br><b>GT</b>: ${(Number(ship.gt)||0).toFixed(1)} GT<br><b>DWT</b>: ${(Number(ship.dwt)||0).toFixed(1)} Ton`;
     }
-    function renderList(){cargoList.innerHTML=cargos.length?cargos.map((c,i)=>`<tr><td>${i+1}</td><td>${c.name}</td><td>${c.L.toFixed(2)} × ${c.W.toFixed(2)}</td><td>${Number(c.H||0).toFixed(2)}</td><td>${Number(c.weight).toFixed(1)} Ton</td><td><span class="edit" onclick="editCargo(${c.id})" title="Edit cargo">✏️</span> <span class="del" onclick="deleteCargo(${c.id})" title="Hapus cargo">🗑</span></td></tr>`).join(''):`<tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px">Belum ada cargo</td></tr>`}
+    function renderList(){cargoList.innerHTML=cargos.length?cargos.map((c,i)=>`<tr><td>${i+1}</td><td>${c.name}</td><td>${c.L.toFixed(2)} × ${c.W.toFixed(2)}</td><td>${Number(c.H||0).toFixed(2)}</td><td>${Number(Number(c.weight).toFixed(2))} Ton</td><td><span class="edit" onclick="editCargo(${c.id})" title="Edit cargo">✏️</span> <span class="del" onclick="deleteCargo(${c.id})" title="Hapus cargo">🗑</span></td></tr>`).join(''):`<tr><td colspan="6" style="text-align:center;color:#64748b;padding:20px">Belum ada cargo</td></tr>`}
 
     function renderPrintProjectInfo(){
       const setText=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value&&String(value).trim()?value:'-'};
@@ -1191,7 +1198,7 @@
       summaryBox.innerHTML=`
         <div class="summary-row"><span>Kapal</span><b>${ship.name}</b></div>
         <div class="summary-row"><span>Total Cargo</span><b>${cargos.length} Unit</b></div>
-        <div class="summary-row"><span>Total Berat Cargo</span><b>${totalWeight.toFixed(1)} Ton</b></div>
+        <div class="summary-row"><span>Total Berat Cargo</span><b>${totalWeight.toFixed(2)} Ton</b></div>
         <div class="summary-row"><span>Gross Tonnage / Patokan Alert</span><b>${gtLimit>0?gtLimit.toFixed(1)+' GT':'Belum diisi'}</b></div>
         <div class="summary-row"><span>GT Terpakai</span><b>${gtLimit>0?gtPercent.toFixed(1)+'%':'-'}</b></div>
         <div class="summary-row"><span>DWT / Data Tambahan</span><b>${dwtLimit>0?dwtLimit.toFixed(1)+' Ton':'Belum diisi'}</b></div>
@@ -1208,7 +1215,7 @@
       const gtLimit=Number(ship.gt||0);
       if(gtLimit>0&&totalWeight>gtLimit){
         if(showPopup&&!gtAlertShown){
-          alert('PERINGATAN!\n\nTotal berat cargo: '+totalWeight.toFixed(1)+' Ton\nGT kapal: '+gtLimit.toFixed(1)+' GT\n\nTotal berat cargo sudah melebihi GT kapal.');
+          alert('PERINGATAN!\n\nTotal berat cargo: '+totalWeight.toFixed(2)+' Ton\nGT kapal: '+gtLimit.toFixed(1)+' GT\n\nTotal berat cargo sudah melebihi GT kapal.');
           gtAlertShown=true;
         }
       }else{
@@ -1363,7 +1370,7 @@
       }
     }
     function saveJSON(){const data=getStowageData();saveHistory(data)}
-    function renderHistory(){const history=JSON.parse(localStorage.getItem('stowageProjectHistory')||'[]');if(!history.length){historyList.innerHTML='<tr><td colspan="9" style="text-align:center;color:#64748b;padding:18px">Belum ada riwayat project.</td></tr>';return}historyList.innerHTML=history.map((h,i)=>{const total=(h.cargos||[]).reduce((a,b)=>a+Number(b.weight||0),0);const tujuan=[h.project?.from,h.project?.to].filter(Boolean).join(' - ')||'-';const fileName='stowage_'+String(h.project?.name||'project').replace(/[^a-zA-Z0-9]+/g,'_')+'.pdf';const pdfData=pdfMemoryCache[h.id];const pdfCell=pdfData?`<a class="btn small green" href="${pdfData}" download="${fileName}">📥 Unduh PDF</a>`:`<span style="color:#94a3b8;font-size:12px">Klik "PDF Cepat"</span>`;return`<tr><td>${i+1}</td><td>${h.project?.name||'Tanpa Nama'}</td><td>${tujuan}</td><td>${h.ship?.name||'-'}</td><td>${(h.cargos||[]).length} Unit</td><td>${total.toFixed(1)} Ton</td><td>${h.date||'-'}</td><td>${pdfCell}</td><td><div class="history-actions"><button class="btn small" onclick="openHistory(${h.id})">Edit</button><button class="btn small primary" onclick="printHistory(${h.id})">PDF Cepat</button><button class="btn small danger" onclick="deleteHistory(${h.id})">Hapus</button></div></td></tr>`}).join('')}
+    function renderHistory(){const history=JSON.parse(localStorage.getItem('stowageProjectHistory')||'[]');if(!history.length){historyList.innerHTML='<tr><td colspan="9" style="text-align:center;color:#64748b;padding:18px">Belum ada riwayat project.</td></tr>';return}historyList.innerHTML=history.map((h,i)=>{const total=(h.cargos||[]).reduce((a,b)=>a+Number(b.weight||0),0);const tujuan=[h.project?.from,h.project?.to].filter(Boolean).join(' - ')||'-';const fileName='stowage_'+String(h.project?.name||'project').replace(/[^a-zA-Z0-9]+/g,'_')+'.pdf';const pdfData=pdfMemoryCache[h.id];const pdfCell=pdfData?`<a class="btn small green" href="${pdfData}" download="${fileName}">📥 Unduh PDF</a>`:`<span style="color:#94a3b8;font-size:12px">Klik "PDF Cepat"</span>`;return`<tr><td>${i+1}</td><td>${h.project?.name||'Tanpa Nama'}</td><td>${tujuan}</td><td>${h.ship?.name||'-'}</td><td>${(h.cargos||[]).length} Unit</td><td>${total.toFixed(2)} Ton</td><td>${h.date||'-'}</td><td>${pdfCell}</td><td><div class="history-actions"><button class="btn small" onclick="openHistory(${h.id})">Edit</button><button class="btn small primary" onclick="printHistory(${h.id})">PDF Cepat</button><button class="btn small danger" onclick="deleteHistory(${h.id})">Hapus</button></div></td></tr>`}).join('')}
     function openHistory(id){
       const history=JSON.parse(localStorage.getItem('stowageProjectHistory')||'[]');
       const data=history.find(h=>h.id===id);
@@ -1391,7 +1398,7 @@
       renderAll();
       window.scrollTo({top:0,behavior:'smooth'});
     }
-    function printHistory(id){openHistory(id);setTimeout(()=>{renderPrintProjectInfo();window.print()},300)}
+    function printHistory(id){openHistory(id);setTimeout(()=>{renderPrintProjectInfo();updatePrintScale();window.print()},300)}
     function closeWarning(){const el=document.getElementById('bottomWarning');if(el)el.style.display='none'}
 
     function captureStowageCanvas(){
@@ -1431,9 +1438,21 @@
         shipTitle.style.color='#0f3769';
         shipTitle.style.marginBottom='14px';
 
+        const ov=getStowageOverflow();
         const canvasClone=target.cloneNode(true);
         canvasClone.style.margin='0 auto';
         canvasClone.style.boxShadow='none';
+        // zoom layar jangan ikut ke hasil export (bikin isi lebih besar dari kotak putih)
+        const wrapClone=canvasClone.querySelector('#shipWrap');
+        if(wrapClone){wrapClone.style.transform='none';wrapClone.style.marginBottom='0';wrapClone.style.transition='none'}
+        canvasClone.style.overflow='visible';
+        canvasClone.style.minHeight='0';
+        canvasClone.style.width='max-content';
+        canvasClone.style.minWidth=target.offsetWidth+'px';
+        canvasClone.style.boxSizing='border-box';
+        canvasClone.style.padding=(22+ov.t)+'px '+(22+ov.r)+'px '+(22+ov.b)+'px '+(22+ov.l)+'px';
+        exportArea.style.width='max-content';
+        exportArea.style.minWidth=(target.offsetWidth+44)+'px';
 
         exportArea.appendChild(title);
         exportArea.appendChild(shipTitle);
@@ -1627,6 +1646,7 @@
 
     shipEl.onpointerdown=function(e){
       if(e.target.closest('.cargo'))return;
+      if(e.pointerType!=='touch'&&(e.button===1||e.altKey))return; // mode geser kanvas
       if(e.pointerType==='touch'){
         const now=Date.now();
         const dt=now-lastShipTouchTapTime;
@@ -1722,6 +1742,40 @@
     });
 
 
+    // Hitung seberapa jauh isi (cargo, label, garis ukuran) keluar dari area kapal,
+    // supaya kotak putih (canvas) selalu membungkus SEMUA cargo & label.
+    function getStowageOverflow(){
+      const z=stowageZoom||1;
+      const sr=shipEl.getBoundingClientRect();
+      const W=parseFloat(shipEl.style.width)||0,H=parseFloat(shipEl.style.height)||0;
+      let minL=0,minT=0,maxR=W,maxB=H;
+      Array.from(shipEl.children).forEach(ch=>{
+        const r=ch.getBoundingClientRect();
+        if(!r.width&&!r.height)return;
+        minL=Math.min(minL,(r.left-sr.left)/z);
+        minT=Math.min(minT,(r.top-sr.top)/z);
+        maxR=Math.max(maxR,(r.right-sr.left)/z);
+        maxB=Math.max(maxB,(r.bottom-sr.top)/z);
+      });
+      const pad=8,f=v=>v>0?Math.ceil(v)+pad:0;
+      return {l:f(-minL),t:f(-minT),r:f(maxR-W),b:f(maxB-H)};
+    }
+    // Hitung skala cetak supaya seluruh kapal muat dalam 1 halaman A4 (tidak terpotong)
+    function updatePrintScale(){
+      const sw=parseFloat(shipEl.style.width)||shipEl.offsetWidth||0;
+      const sh=parseFloat(shipEl.style.height)||shipEl.offsetHeight||0;
+      const ov=getStowageOverflow();
+      const root=document.documentElement.style;
+      root.setProperty('--ovL',ov.l+'px');root.setProperty('--ovT',ov.t+'px');
+      root.setProperty('--ovR',ov.r+'px');root.setProperty('--ovB',ov.b+'px');
+      // area cetak A4 (96dpi) dikurangi margin 8mm: ~ 733 x 1062 px
+      const availW=733,availH=1062;
+      // tambahan: padding canvas (44) + judul + nama kapal + border + cadangan
+      const needW=sw+44+20+ov.l+ov.r,needH=sh+44+110+ov.t+ov.b;
+      const k=Math.min(1,availW/needW,availH/needH)*0.97;
+      root.setProperty('--printScale',k.toFixed(4));
+    }
+    window.addEventListener('beforeprint',updatePrintScale);
     function applyStowageZoom(){
       if(!shipWrap)return;
       shipWrap.style.transform='scale('+stowageZoom+')';
@@ -1777,14 +1831,17 @@
       const viewport=document.getElementById('canvasViewport');
       if(!viewport)return;
       viewport.addEventListener('wheel',function(e){
+        // Scroll biasa = scroll halaman (tidak dibajak). Zoom hanya dengan Ctrl/Cmd + scroll
+        // (pinch di trackpad otomatis terkirim sebagai Ctrl + scroll).
+        if(!(e.ctrlKey||e.metaKey))return;
         if(!e.target.closest('.canvas'))return;
         e.preventDefault();
         const rect=viewport.getBoundingClientRect();
         const mouseX=e.clientX-rect.left+viewport.scrollLeft;
         const mouseY=e.clientY-rect.top+viewport.scrollTop;
         const oldZoom=stowageZoom;
-        const direction=e.deltaY<0?1:-1;
-        const nextZoom=Math.max(0.5,Math.min(2.2,oldZoom+(direction*0.08)));
+        const d=Math.max(-30,Math.min(30,e.deltaY));
+        const nextZoom=Math.max(0.5,Math.min(2.2,oldZoom*Math.exp(-d*0.004)));
         if(nextZoom===oldZoom)return;
         stowageZoom=nextZoom;
         applyStowageZoom();
@@ -1801,8 +1858,19 @@
       let panning=false,startX=0,startY=0,scrollLeft0=0,scrollTop0=0;
       canvasEl.addEventListener('pointerdown',function(e){
         const onShip=e.target.closest('.ship');
-        if(onShip&&e.pointerType!=='touch')return;
-        if(e.button!==0&&e.pointerType==='mouse')return;
+        if(e.pointerType==='touch')return; // sentuhan: biarkan scroll bawaan browser
+        const panMode=(e.button===1||e.altKey); // geser kanvas: klik tengah / Alt + tarik
+        if(!panMode){
+          // Tarik di area kosong kotak putih (di luar kapal) = blok / pilih banyak cargo
+          if(onShip)return; // di atas kapal sudah ditangani handler kapal
+          if(e.button!==0||typeof shipEl.onpointerdown!=='function')return;
+          e.preventDefault();
+          shipEl.onpointerdown(e);
+          const clearFlag=()=>{document.removeEventListener('pointerup',clearFlag);setTimeout(()=>{didBoxSelect=false},60)};
+          document.addEventListener('pointerup',clearFlag);
+          return;
+        }
+        if(e.button!==0&&e.button!==1)return;
         panning=true;
         startX=e.clientX;
         startY=e.clientY;
@@ -1870,6 +1938,195 @@
       if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))keyboardMoveStarted=false;
     });
     init();
+    // ===== Tombol aktif/nonaktif notifikasi merah (tabrakan/bertindihan) =====
+    (function(){
+      let on=true;
+      try{on=localStorage.getItem('stowageCollisionAlert')!=='off'}catch(e){}
+      const _g=getCollisionIds;
+      getCollisionIds=function(){return on?_g():new Set()};
+      const st=document.createElement('style');
+      st.textContent='.collision-toggle{display:inline-flex;align-items:center;gap:7px}.collision-toggle .dot{width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block}.collision-toggle.on{background:#fee2e2;border-color:#ef4444;color:#991b1b}.collision-toggle.on .dot{background:#ef4444}';
+      document.head.appendChild(st);
+      const btn=document.createElement('button');
+      btn.type='button';btn.id='collisionToggleBtn';btn.className='btn small collision-toggle';
+      btn.title='Nyalakan: kotak yang menempel atau bertindihan diberi tanda merah. Matikan: boleh bertindihan (misalnya pipa) tanpa tanda merah.';
+      function paint(){
+        btn.classList.toggle('on',on);
+        btn.innerHTML='<span class="dot"></span>Notifikasi tabrakan: '+(on?'AKTIF':'NONAKTIF');
+      }
+      btn.onclick=function(){
+        on=!on;
+        try{localStorage.setItem('stowageCollisionAlert',on?'on':'off')}catch(e){}
+        paint();renderCargoElements();renderSummary();
+      };
+      paint();
+      const bar=document.querySelector('.zoom-bar');
+      if(bar)bar.insertBefore(btn,bar.querySelector('.zoom-hint')||null);
+    })();
+
+    // ===== Label otomatis: nama cargo kecil tidak terpotong =====
+    // Cargo yang kotaknya sempit ditulis di luar kotak (nama + berat) pada ruang kosong terdekat,
+    // dengan garis penunjuk. Label bisa DITARIK manual (garis ikut memanjang/memendek/miring);
+    // klik dua kali pada label untuk mengembalikan ke posisi otomatis.
+    (function(){
+      const _orig=renderCargoElements;
+      const cv=document.createElement('canvas').getContext('2d');
+      const hit=(a,b)=>a.l<b.r&&a.r>b.l&&a.t<b.b&&a.b>b.t;
+      renderCargoElements=function(){
+        _orig();
+        shipEl.querySelectorAll('.cargo-callout').forEach(e=>e.remove());
+        if(!cargos.length)return;
+        const o=deckOrigin();
+        const deck={l:o.x+2,r:o.x+ship.deckW*scale-2,t:o.y+2,b:o.y+ship.deckL*scale-2};
+        const boxes=cargos.map(c=>({id:String(c.id),l:c.x-2,t:c.y-2,r:c.x+c.W*scale+2,b:c.y+c.L*scale+2}));
+        const placed=[];
+        const mid=o.y+ship.deckL*scale/2;
+        const fam=getComputedStyle(shipEl).fontFamily;
+        const SW=parseFloat(shipEl.style.width)||0,SH=parseFloat(shipEl.style.height)||0;
+        shipEl.querySelectorAll('.cargo').forEach(el=>{
+          const c=cargos.find(x=>String(x.id)===el.dataset.id);
+          const lab=el.querySelector('.cargo-label');
+          if(!c||!lab)return;
+          if(el.clientWidth>=21&&el.clientHeight>=21)return;
+          lab.style.visibility='hidden';
+          const text=c.name+' '+formatWeight(c.weight)+' T';
+          cv.font='700 10px '+fam;
+          const len=Math.ceil(cv.measureText(text).width)+6,th=13,G=9;
+          const cx=c.x+c.W*scale/2,cy=c.y+c.L*scale/2,L=c.x,R=c.x+c.W*scale,T=c.y,B=c.y+c.L*scale;
+          const cand={
+            up:{dir:'v',r:{l:cx-th/2,r:cx+th/2,t:T-G-len,b:T-G},rot:true},
+            down:{dir:'v',r:{l:cx-th/2,r:cx+th/2,t:B+G,b:B+G+len},rot:false},
+            left:{dir:'h',r:{l:L-G-len,r:L-G,t:cy-th/2,b:cy+th/2},align:'right'},
+            right:{dir:'h',r:{l:R+G,r:R+G+len,t:cy-th/2,b:cy+th/2},align:'left'}
+          };
+          const order=(cy<mid)?['up','down','left','right']:['down','up','left','right'];
+          let pick=null;
+          // label yang sudah ditarik manual tidak ikut aturan tabrakan otomatis
+          for(const k of order){
+            const r=cand[k].r;
+            if(r.l<deck.l||r.r>deck.r||r.t<deck.t||r.b>deck.b)continue;
+            if(boxes.some(b=>b.id!==String(c.id)&&hit(r,b)))continue;
+            if(placed.some(p=>hit(r,p)))continue;
+            pick=cand[k];break;
+          }
+          if(!pick)pick=cand[order[0]];
+          // geseran manual (disimpan dalam meter supaya tetap benar bila skala berubah)
+          let r={...pick.r};
+          if(c.lbl){
+            const w=r.r-r.l,h=r.b-r.t;
+            let nl=r.l+c.lbl.dx*scale,nt=r.t+c.lbl.dy*scale;
+            nl=Math.max(0,Math.min(SW-w,nl));nt=Math.max(0,Math.min(SH-h,nt));
+            c.lbl.dx=(nl-r.l)/scale;c.lbl.dy=(nt-r.t)/scale;
+            r={l:nl,t:nt,r:nl+w,b:nt+h};
+          }
+          placed.push(r);
+          const d=document.createElement('div');
+          d.className='cargo-callout cargo-label-drag';
+          d.title='Tarik untuk memindah label. Klik dua kali untuk reset.';
+          Object.assign(d.style,{position:'absolute',left:r.l+'px',top:r.t+'px',width:(r.r-r.l)+'px',height:(r.b-r.t)+'px',
+            font:'700 10px '+fam,color:'#111',whiteSpace:'nowrap',zIndex:6,lineHeight:th+'px',cursor:'grab',touchAction:'none',
+            background:'transparent',border:'0',borderRadius:'0',boxShadow:'none',userSelect:'none',webkitUserSelect:'none'});
+          if(pick.dir==='v'){
+            // Teks vertikal dibuat dengan kotak horizontal yang DIPUTAR (bukan writing-mode),
+            // supaya hasil Export PDF / capture gambar tetap rapi (html2canvas & print tidak
+            // mendukung writing-mode dengan benar).
+            const bw=r.r-r.l,bh=r.b-r.t;
+            Object.assign(d.style,{width:bh+'px',height:bw+'px',
+              left:(r.l+(bw-bh)/2)+'px',top:(r.t+(bh-bw)/2)+'px',
+              transformOrigin:'50% 50%',transform:pick.rot?'rotate(-90deg)':'rotate(90deg)',
+              textAlign:'left',padding:'0 0 0 3px'});
+          }
+          else{d.style.textAlign=pick.align;d.style.padding='0 3px'}
+          d.textContent=text;
+          d.addEventListener('pointerdown',ev=>{
+            ev.stopPropagation();ev.preventDefault();
+            selectedId=c.id;selectedIds=[c.id];
+            const now=Date.now(),tap=window.__lblTap;
+            if(tap&&tap.id===c.id&&now-tap.t<400){window.__lblTap=null;if(c.lbl){pushUndoState();delete c.lbl}renderCargoElements();return}
+            window.__lblTap={id:c.id,t:now};
+            pushUndoState();
+            let lx=ev.clientX,ly=ev.clientY;
+            const mv=e2=>{
+              const z=stowageZoom||1,cc=cargos.find(x=>x.id===c.id);if(!cc)return;
+              cc.lbl=cc.lbl||{dx:0,dy:0};
+              cc.lbl.dx+=(e2.clientX-lx)/z/scale;cc.lbl.dy+=(e2.clientY-ly)/z/scale;
+              lx=e2.clientX;ly=e2.clientY;
+              renderCargoElements();
+            };
+            const up=()=>{window.removeEventListener('pointermove',mv);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up)};
+            window.addEventListener('pointermove',mv);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);
+            renderCargoElements();
+          });
+          d.addEventListener('dblclick',ev=>{ev.stopPropagation();pushUndoState();delete c.lbl;renderCargoElements()});
+          d.onclick=ev=>ev.stopPropagation();
+          shipEl.appendChild(d);
+          // garis penunjuk: dari tengah kotak ke titik terdekat pada label (digambar di bawah kotak)
+          const tx=Math.max(r.l,Math.min(r.r,cx)),ty=Math.max(r.t,Math.min(r.b,cy));
+          const dx=tx-cx,dy=ty-cy,ln=document.createElement('div');
+          ln.className='cargo-callout';
+          Object.assign(ln.style,{position:'absolute',left:cx+'px',top:(cy-0.75)+'px',width:Math.hypot(dx,dy)+'px',height:'1.5px',background:'#111',
+            transformOrigin:'0 50%',transform:'rotate('+Math.atan2(dy,dx)+'rad)',pointerEvents:'none',zIndex:4});
+          shipEl.appendChild(ln);
+        });
+      };
+    })();
+
+    // ===== Sorot baris Daftar Cargo saat cargo dipilih (dua arah) =====
+    (function(){
+      const st=document.createElement('style');
+      st.textContent='.cargo-table tbody tr{cursor:pointer}.cargo-table tbody tr.row-selected td{background:#fff3bf!important;font-weight:700}.cargo-table tbody tr.row-selected td:first-child{box-shadow:inset 5px 0 0 #f59e0b}';
+      document.head.appendChild(st);
+      let lastKey='';
+      function ids(){return selectedIds.length?selectedIds:(selectedId?[selectedId]:[])}
+      function highlightRows(){
+        const sel=ids();
+        const rows=cargoList.querySelectorAll('tr');
+        let first=null;
+        rows.forEach((tr,i)=>{
+          const c=cargos[i];
+          const on=!!c&&sel.includes(c.id);
+          tr.classList.toggle('row-selected',on);
+          if(on&&!first)first=tr;
+        });
+        const key=sel.join(',');
+        if(key!==lastKey){
+          lastKey=key;
+          const box=cargoList.closest('.cargo-list-scroll');
+          if(first&&box){
+            const b=box.getBoundingClientRect(),r=first.getBoundingClientRect();
+            if(r.top<b.top+40||r.bottom>b.bottom)box.scrollTop+=r.top-b.top-44;
+          }
+        }
+      }
+      const _rl=renderList;
+      renderList=function(){
+        _rl();
+        cargoList.querySelectorAll('tr').forEach((tr,i)=>{
+          tr.addEventListener('click',e=>{
+            if(e.target.closest('.edit,.del'))return;
+            const c=cargos[i];if(!c)return;
+            selectedId=c.id;selectedIds=[c.id];
+            renderCargoElements();
+          });
+        });
+        highlightRows();
+      };
+      const _rc=renderCargoElements;
+      renderCargoElements=function(){_rc();highlightRows()};
+    })();
+
+    // ===== Auto-load: Packing List Tomori -> LCT Perkasa Prima 7 =====
+    (function(){
+      const stowData=[{"no": 5, "name": "Burner Head", "L": 2.0, "W": 1.2, "H": 1.5, "weight": 0.267, "color": "#d9cdea", "xm": 0.555, "ym": 11.72}, {"no": 11, "name": "Sand Skip", "L": 2.1, "W": 1.2, "H": 1.2, "weight": 1.0, "color": "#d9cdea", "xm": 2.205, "ym": 11.67}, {"no": 24, "name": "Concrete Block", "L": 1.0, "W": 1.0, "H": 1.2, "weight": 1.5, "color": "#cfcfcf", "xm": 3.855, "ym": 12.22}, {"no": 14, "name": "Air Compressor Kecil", "L": 2.95, "W": 1.62, "H": 1.92, "weight": 2.0, "color": "#f2b9a8", "xm": 5.305, "ym": 11.245}, {"no": 7, "name": "Propane Rack", "L": 1.21, "W": 1.17, "H": 2.37, "weight": 1.5, "color": "#d9cdea", "xm": 7.375, "ym": 12.115}, {"no": 26, "name": "Concrete Block", "L": 1.0, "W": 1.0, "H": 1.2, "weight": 1.5, "color": "#cfcfcf", "xm": 8.995, "ym": 12.22}, {"no": 18, "name": "Inline PRV", "L": 2.2, "W": 0.7, "H": 1.15, "weight": 0.75, "color": "#d9cdea", "xm": 10.445, "ym": 11.62}, {"no": 13, "name": "Air Compressor 750 CFM", "L": 3.99, "W": 2.25, "H": 2.2, "weight": 6.5, "color": "#f2b9a8", "xm": 0.955, "ym": 15.7}, {"no": 10, "name": "Sand Filter", "L": 6.0, "W": 2.44, "H": 1.32, "weight": 9.0, "color": "#9ec5e8", "xm": 3.505, "ym": 14.695}, {"no": 29, "name": "Pipe Rack 3\" 1502", "L": 3.93, "W": 2.04, "H": 1.9, "weight": 8.0, "color": "#f5d98a", "xm": 6.245, "ym": 15.73}, {"no": 12, "name": "Air Compressor 750 CFM", "L": 3.81, "W": 2.16, "H": 1.9, "weight": 4.29, "color": "#f2b9a8", "xm": 8.585, "ym": 15.79}, {"no": 1, "name": "Atmospheric Tank 200 bbl", "L": 7.0, "W": 2.48, "H": 3.18, "weight": 12.0, "color": "#9ec5e8", "xm": 0.47, "ym": 21.195}, {"no": 16, "name": "Separator", "L": 6.4, "W": 2.5, "H": 2.9, "weight": 17.8, "color": "#9ec5e8", "xm": 3.25, "ym": 21.495}, {"no": 17, "name": "Surge Tank", "L": 6.08, "W": 2.44, "H": 2.8, "weight": 13.5, "color": "#9ec5e8", "xm": 6.05, "ym": 21.655}, {"no": 2, "name": "Basket Flowhead 15K 3\"", "L": 6.06, "W": 2.44, "H": 1.32, "weight": 7.0, "color": "#f5d98a", "xm": 8.79, "ym": 21.665}, {"no": 21, "name": "Basket Pipe 20ft", "L": 6.06, "W": 2.44, "H": 1.32, "weight": 10.0, "color": "#f5d98a", "xm": 0.515, "ym": 28.695}, {"no": 19, "name": "Basket Pipe 4\"", "L": 6.06, "W": 2.44, "H": 1.32, "weight": 11.5, "color": "#f5d98a", "xm": 3.255, "ym": 28.695}, {"no": 20, "name": "Basket Pipe 3\"", "L": 6.06, "W": 2.44, "H": 1.32, "weight": 11.5, "color": "#f5d98a", "xm": 5.995, "ym": 28.695}, {"no": 4, "name": "Lab Cabin", "L": 6.05, "W": 2.45, "H": 2.6, "weight": 8.3, "color": "#b9e0b0", "xm": 8.735, "ym": 28.7}, {"no": 27, "name": "Welltest Container 10'", "L": 3.05, "W": 2.44, "H": 2.44, "weight": 7.4, "color": "#b9e0b0", "xm": 3.48, "ym": 35.255}, {"no": 28, "name": "Choke Manifold", "L": 2.94, "W": 2.0, "H": 0.83, "weight": 4.0, "color": "#d9cdea", "xm": 6.22, "ym": 35.31}, {"no": 22, "name": "Silencer", "L": 2.09, "W": 0.9, "H": 0.97, "weight": 0.6, "color": "#d9cdea", "xm": 0.85, "ym": 39.235}, {"no": 15, "name": "Light Tower", "L": 2.32, "W": 1.45, "H": 2.32, "weight": 1.167, "color": "#f2b9a8", "xm": 2.2, "ym": 39.12}, {"no": 25, "name": "Concrete Block", "L": 1.0, "W": 1.0, "H": 1.2, "weight": 1.5, "color": "#cfcfcf", "xm": 4.1, "ym": 39.78}, {"no": 8, "name": "Generator 137.5 KVA", "L": 2.95, "W": 1.1, "H": 1.57, "weight": 1.8, "color": "#f2b9a8", "xm": 5.55, "ym": 38.805}, {"no": 9, "name": "Generator 137.5 KVA", "L": 2.95, "W": 1.1, "H": 1.57, "weight": 1.8, "color": "#f2b9a8", "xm": 7.1, "ym": 38.805}, {"no": 6, "name": "Propane Rack", "L": 1.21, "W": 1.17, "H": 2.37, "weight": 1.3, "color": "#d9cdea", "xm": 8.65, "ym": 39.675}, {"no": 23, "name": "SSV", "L": 1.27, "W": 0.58, "H": 1.55, "weight": 0.624, "color": "#d9cdea", "xm": 10.27, "ym": 39.645}];
+      shipSelect.value='perkasa';
+      loadPreset();
+      const o=deckOrigin();
+      cargos=stowData.map((d,i)=>({id:Date.now()+i+Math.random(),name:d.name,L:d.L,W:d.W,H:d.H,weight:d.weight,color:d.color,x:o.x+d.xm*scale,y:o.y+d.ym*scale}));
+      projectNameInput.value='Packing List Tomori';
+      projectNoteInput.value='Peralatan well test (28 unit cargo utama, komponen di dalam basket/rack/container dihitung bagian dari unit induk).';
+      generalNoteInput.value='Dimensi packing list dibaca cm, berat kg. Separator memakai panjang 640 cm. Planner 2D: tidak ada penumpukan, tinggi hanya dicatat. Cek ulang sea fastening dan dokumen stabilitas kapal.';
+      renderAll();
+    })();
   </script>
 </body>
 </html>
