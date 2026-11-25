@@ -295,6 +295,7 @@
     <div class="top-actions">
       <button class="btn" onclick="undoAction()">↶ Undo</button>
       <button class="btn" onclick="redoAction()">↷ Redo</button>
+      <button class="btn" onclick="newProject()">🆕 Project Baru</button>
       <button class="btn" onclick="saveJSON()">💾 Simpan Project</button>
       <button class="btn primary" onclick="updatePrintScale();window.print()">Export PDF</button>
       <button class="btn" onclick="downloadStowageImage()">Unduh Gambar</button>
@@ -1162,6 +1163,18 @@
     function deleteCargo(id){pushUndoState();markHistoryAsNew();cargos=cargos.filter(c=>c.id!==id);if(selectedId===id)selectedId=null;selectedIds=selectedIds.filter(x=>x!==id);if(editingCargoId===id)cancelEditCargo();gtAlertShown=false;renderAll()}
     function deleteSelectedCargo(){const ids=selectedIds.length?selectedIds:(selectedId?[selectedId]:[]);if(!ids.length)return;pushUndoState();markHistoryAsNew();cargos=cargos.filter(c=>!ids.includes(c.id));selectedId=null;selectedIds=[];gtAlertShown=false;renderAll()}
     function duplicateCargo(){const ids=selectedIds.length?selectedIds:(selectedId?[selectedId]:[]);if(!ids.length)return;pushUndoState();markHistoryAsNew();const newIds=[];ids.forEach((id,i)=>{const c=cargos.find(x=>x.id===id);if(!c)return;const copy={...c,id:Date.now()+Math.random()+i,name:c.name,x:c.x+20,y:c.y+20};cargos.push(copy);newIds.push(copy.id)});selectedIds=newIds;selectedId=newIds[0]||null;renderAll();checkGTAlert(true)}
+    // Mulai project baru: kosongkan cargo + isian project, lepas tautan ke project lama
+    // (supaya Simpan Project membuat entri BARU, bukan menimpa yang lama). Kapal tetap dipakai.
+    function newProject(){
+      const hasWork=cargos.length>0||[projectNameInput,projectFromInput,projectToInput,projectNoteInput,generalNoteInput].some(el=>el&&el.value.trim());
+      if(hasWork&&!confirm('Mulai project baru?\nPerubahan yang belum disimpan akan hilang. Project lama di riwayat tidak terhapus.'))return;
+      pushUndoState();
+      historyEditId=null;
+      cargos=[];selectedId=null;selectedIds=[];gtAlertShown=false;
+      [projectNameInput,projectFromInput,projectToInput,projectNoteInput,generalNoteInput].forEach(el=>{if(el)el.value=''});
+      renderAll();
+      if(projectNameInput)projectNameInput.focus();
+    }
     function resetAll(){pushUndoState();markHistoryAsNew();cargos=[];selectedId=null;selectedIds=[];gtAlertShown=false;renderAll()}
     function renderAll(){renderInfo();renderCargoElements();renderList();renderSummary();renderSideProfile();renderPrintProjectInfo()}
 
